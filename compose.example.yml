@@ -1,0 +1,30 @@
+services:
+  tailscale-authkey:
+    image: tailscale/tailscale:latest
+    container_name: ts-authkey_searxng-mcp
+    hostname: searxng-mcp
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+    volumes:
+      - ts-authkey:/var/lib/tailscale
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - net_admin
+      - sys_module
+    restart: unless-stopped
+  searxng-mcp:
+    build: .
+    container_name: searxng-mcp
+    environment:
+      - SEARXNG_URL=${SEARXNG_URL}
+      - PORT=${PORT}
+    network_mode: service:tailscale-authkey
+    restart: unless-stopped
+    depends_on:
+      - tailscale-authkey
+
+volumes:
+  ts-authkey:
+    driver: local
