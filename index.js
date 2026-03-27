@@ -4,7 +4,6 @@ import http from "http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import axios from "axios";
-import * as cheerio from "cheerio";
 
 const SEARXNG_URL = process.env.SEARXNG_URL;
 const PORT = process.env.PORT;
@@ -18,21 +17,30 @@ function registerTools(server) {
         {
             description: "Search the web by a query using SearXNG",
             inputSchema: {
-                query: z.string().describe("Search query."),
+                query: z.string().describe("The search query. This string is passed to external search services. Thus, SearXNG supports syntax of each search service. For example, `site:github.com SearXNG` is a valid query for Google. However, if simply the query above is passed to any search engine which does not filter its results based on this syntax, you might not get the results you wanted"),
                 language: z.string().optional().default("es").describe("Code of the search language, e.g. 'en', 'es'"),
+                engines: z.array(z.enum(["brave", "duckduckgo", "startpage", "wikidata", "wikipedia"])).optional().default(["brave", "duckduckgo", "startpage"]).describe("Specifies the active search engines to use"),
+                time_range: z.enum(["day", "month", "year"]).optional().default("month").describe("Time range of search for engines which support it"),
                 max_results: z.number().optional().default(20).describe("Max number of results")
             },
         },
-        async ({ query, language, max_results }) => {
-            const params = new URLSearchParams({ q: query, format: "json", language });
+        async ({ query, language, engines, time_range, max_results }) => {
+            const params = new URLSearchParams({
+                q: query,
+                format: "json",
+                language,
+                engines: engines.join(","),
+                time_range,
+            });
             const response = await axios.post(`${SEARXNG_URL}/search`, params);
             const results = (response.data.results || []).slice(0, max_results);
 
             const formatted = results.map((result, index) => [
                 `[${index + 1}] ${result.title}`,
                 `URL: ${result.url}`,
-                result.content ? `Summary: ${result.content}` : "",
-            ].filter(Boolean).join("\n")).join("\n\n");
+                result.engine ? `ENGINE: ${result.engine}` : "",
+                result.content ? `SUMMARY: ${result.content}` : "",
+            ].filter(Boolean).join("\n")).join("\n\n---\n\n");
 
             return {
                 content: [
@@ -42,38 +50,6 @@ function registerTools(server) {
                     },
                 ],
             };
-        }
-    );
-
-    server.registerTool(
-        "visit_page",
-        {
-            description: "Fetch the HTML of a URL and attempt to extract clean text",
-            inputSchema: {
-                url: z.url().describe("URL to visit"),
-                raw: z.boolean().optional().default(false).describe("Return raw HTML instead of attempting to extract text"),
-            },
-        },
-        async ({ url, raw }) => {
-            const response = await axios.get(url, {
-                headers: {
-                    "User-Agent": "Mozilla/5.0 (compatible; MCPBot/1.0; +https://github.com/arisjulio",
-                    "Accept-Language": "es-419,es;q=0.9"
-                },
-                timeout: 15000,
-                maxContentLength: 5 * 1000 * 1000 // 5MB
-            });
-
-            if (raw) return { content: [{ type: "text", text: response.data }] };
-
-            const $ = cheerio.load(response.data);
-            $("script, style, noscript, nav, footer, header, aside, iframe, svg").remove();
-
-            const title = $("title").text().trim();
-            const body = $("body").text().replace(/\s+/g, " ").trim();
-            const text = `Title: ${title}\n\n${body}`.slice(0, 20000) // Cap to 20K chars
-
-            return { content: [{ type: "text", text }] };
         }
     );
 }

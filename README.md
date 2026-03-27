@@ -4,10 +4,17 @@ An MCP server that gives AI assistants (Claude, Cursor, etc.) the ability to sea
 
 ## Tools
 
-| Tool | Description |
-|------|-------------|
-| `web_search` | Search the web via SearXNG. Returns titles, URLs, and summaries. |
-| `visit_page` | Fetch a URL and extract readable text (strips nav, scripts, etc). |
+### `web_search`
+
+Search the web via SearXNG. Returns titles, URLs, engine source, and summaries.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `query` | string | yes | — | Search query. Supports engine-specific syntax (e.g. `site:github.com SearXNG`). |
+| `language` | string | no | `es` | Language code for results (e.g. `en`, `es`). |
+| `engines` | string[] | no | `["brave", "duckduckgo", "startpage"]` | Engines to query. Options: `brave`, `duckduckgo`, `startpage`, `wikidata`, `wikipedia`. |
+| `time_range` | string | no | `month` | Filter by recency. Options: `day`, `month`, `year`. |
+| `max_results` | number | no | `20` | Maximum number of results to return. |
 
 ## Prerequisites
 
